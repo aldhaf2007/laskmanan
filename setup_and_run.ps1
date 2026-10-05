@@ -1,11 +1,12 @@
 # ==============================================================================
-# Student Attendance Management System - Automated Setup & Run Script (PowerShell)
+# Student Attendance Management System - Robust PowerShell Setup & Run Script
 # ==============================================================================
 
 [CmdletBinding()]
 param()
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Write-Step {
     param([string]$Message)
@@ -30,9 +31,9 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
 # ------------------------------------------------------------------------------
-# 1. Check Python
+# 1. Deep Python 3 Detection
 # ------------------------------------------------------------------------------
-Write-Step "Checking Python 3 environment..."
+Write-Step "1/5: Checking Python 3 environment..."
 $PythonCmd = $null
 
 if (Get-Command "python" -ErrorAction SilentlyContinue) {
@@ -41,32 +42,42 @@ if (Get-Command "python" -ErrorAction SilentlyContinue) {
     $PythonCmd = "py"
 }
 
+# If not in PATH, search standard Windows Python directories
 if (-not $PythonCmd) {
-    Write-Warn "Python was not found in PATH."
-    if (Get-Command "winget" -ErrorAction SilentlyContinue) {
-        Write-Host "[*] Installing Python 3.12 via winget..." -ForegroundColor Gray
-        winget install --id Python.Python.3.12 -e --silent --accept-package-agreements --accept-source-agreements
-        $PythonCmd = "python"
+    $LocalPython = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python" -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($LocalPython) {
+        $PythonCmd = $LocalPython.FullName
     } else {
-        Write-Error "Please install Python 3 from https://www.python.org/downloads/ and ensure 'Add Python to PATH' is checked."
+        $GlobalPython = Get-ChildItem -Path "$env:ProgramFiles\Python*" -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($GlobalPython) {
+            $PythonCmd = $GlobalPython.FullName
+        }
     }
 }
 
-$PyVersion = & $PythonCmd --version
-Write-Success "Found $PyVersion"
-
-# ------------------------------------------------------------------------------
-# 2. Check & Start MySQL Service
-# ------------------------------------------------------------------------------
-Write-Step "Checking MySQL / MariaDB Server & Services..."
-
-$MySQLInstalled = (Get-Command "mysql" -ErrorAction SilentlyContinue) -ne $null
-if (-not $MySQLInstalled) {
-    Write-Warn "MySQL CLI not found in PATH. Checking Windows Services..."
+if (-not $PythonCmd) {
+    Write-Warn "Python 3 was not found in PATH or standard installation directories."
+    if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+        Write-Host "[*] Installing Python 3.12 via Windows Package Manager (winget)..." -ForegroundColor Gray
+        winget install --id Python.Python.3.12 -e --silent --accept-package-agreements --accept-source-agreements
+        $PythonCmd = "python"
+    } else {
+        Write-Host "[ERROR] Please install Python 3 from https://www.python.org/downloads/ (check 'Add Python to PATH')" -ForegroundColor Red
+        Read-Host "Press Enter to exit..."
+        exit 1
+    }
 }
 
-# Check common MySQL services
-$Services = @("MySQL", "MySQL80", "MySQL84", "MariaDB")
+$PyVersion = & $PythonCmd --version 2>&1
+Write-Success "Using Python: $PyVersion"
+
+# ------------------------------------------------------------------------------
+# 2. Check & Start MySQL / MariaDB Service
+# ------------------------------------------------------------------------------
+Write-Step "2/5: Checking MySQL / MariaDB Server & Services..."
+
+$MySQLInstalled = (Get-Command "mysql" -ErrorAction SilentlyContinue) -ne $null
+$Services = @("MySQL", "MySQL80", "MySQL84", "MariaDB", "wampmysqld", "wampmysqld64")
 $FoundService = $false
 
 foreach ($svc in $Services) {
@@ -74,55 +85,70 @@ foreach ($svc in $Services) {
     if ($status) {
         $FoundService = $true
         if ($status.Status -ne 'Running') {
-            Write-Host "[*] Starting service $svc..." -ForegroundColor Gray
+            Write-Host "[*] Starting Windows Service '$svc'..." -ForegroundColor Gray
             Start-Service -Name $svc -ErrorAction SilentlyContinue
         }
-        Write-Success "Service $($status.Name) is running."
+        Write-Success "Service '$($status.Name)' is active and running."
         break
     }
 }
 
+# Check for XAMPP
+if (-not $FoundService -and (Test-Path "C:\xampp\mysql\bin\mysqld.exe")) {
+    Write-Host "[*] Starting XAMPP MySQL standalone daemon..." -ForegroundColor Gray
+    Start-Process -FilePath "C:\xampp\mysql\bin\mysqld.exe" -ArgumentList "--defaults-file=C:\xampp\mysql\bin\my.ini", "--standalone" -WindowStyle Hidden -ErrorAction SilentlyContinue
+    $FoundService = $true
+}
+
+# If not installed anywhere, install via winget
 if (-not $FoundService -and -not $MySQLInstalled) {
     if (Get-Command "winget" -ErrorAction SilentlyContinue) {
         Write-Host "[*] Installing MariaDB Server via winget (MySQL compatible)..." -ForegroundColor Gray
         winget install --id MariaDB.Server -e --accept-package-agreements --accept-source-agreements
+        Write-Success "MariaDB package installed."
     } else {
-        Write-Warn "If running XAMPP, please start the MySQL module. Or install MySQL from https://dev.mysql.com/downloads/"
+        Write-Warn "If you use XAMPP, please start the MySQL module from XAMPP Control Panel."
     }
 }
 
 # ------------------------------------------------------------------------------
-# 3. Setup Virtual Environment
+# 3. Setup Virtual Environment & Dependencies
 # ------------------------------------------------------------------------------
-Write-Step "Setting up Python Virtual Environment..."
+Write-Step "3/5: Setting up Python Virtual Environment..."
 
-if (-not (Test-Path "venv")) {
-    Write-Host "[*] Creating virtual environment (./venv)..." -ForegroundColor Gray
+$VenvPython = Join-Path $ScriptDir "venv\Scripts\python.exe"
+
+if (-not (Test-Path $VenvPython)) {
+    if (Test-Path "venv") {
+        Remove-Item -Recurse -Force "venv" -ErrorAction SilentlyContinue
+    }
+    Write-Host "[*] Creating virtual environment in ./venv..." -ForegroundColor Gray
     & $PythonCmd -m venv venv
 }
 
-$VenvPython = Join-Path $ScriptDir "venv\Scripts\python.exe"
 if (-not (Test-Path $VenvPython)) {
-    Write-Error "Virtual environment creation failed at $VenvPython"
+    Write-Host "[ERROR] Virtual environment creation failed at $VenvPython" -ForegroundColor Red
+    Read-Host "Press Enter to exit..."
+    exit 1
 }
 
 Write-Success "Virtual environment is ready."
 
-Write-Host "[*] Installing dependencies from requirements.txt..." -ForegroundColor Gray
-& $VenvPython -m pip install --upgrade pip -q
+Write-Host "[*] Checking and updating required dependencies..." -ForegroundColor Gray
+& $VenvPython -m pip install --upgrade pip -q 2>$null
 & $VenvPython -m pip install -r requirements.txt -q
-Write-Success "All requirements installed."
+Write-Success "All requirements installed successfully."
 
 # ------------------------------------------------------------------------------
 # 4. Database Setup & Seeding
 # ------------------------------------------------------------------------------
-Write-Step "Configuring Database & Running Migrations..."
+Write-Step "4/5: Initializing Database (student_attendance_db) & Running Migrations..."
 & $VenvPython setup_db.py
 
 # ------------------------------------------------------------------------------
-# 5. Launch Web Application
+# 5. Launch Web Application & Open Browser
 # ------------------------------------------------------------------------------
-Write-Step "Launching Web Application..."
+Write-Step "5/5: Starting Web Application..."
 Write-Host "======================================================================" -ForegroundColor Green
 Write-Host " Application starting at: http://localhost:5000" -ForegroundColor Green
 Write-Host " Default Admin: admin | Password: admin123" -ForegroundColor Green
