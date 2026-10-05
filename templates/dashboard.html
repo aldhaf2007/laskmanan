@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard{% endblock %}
+{% block page_title %}Administrative Dashboard{% endblock %}
+
+{% block header_actions %}
+    <a href="{{ url_for('attendance.index') }}" class="btn btn-primary">
+        <span>📝</span> Mark Today's Attendance
+    </a>
+{% endblock %}
+
+{% block content %}
+    <!-- Stat Cards Grid -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Total Students</span>
+                <span class="stat-value">{{ student_count }}</span>
+                <span class="stat-helper">{{ classes_count }} Academic Classes</span>
+            </div>
+            <div class="stat-icon primary">🎓</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Faculty Members</span>
+                <span class="stat-value">{{ faculty_count }}</span>
+                <span class="stat-helper">Active Teaching Staff</span>
+            </div>
+            <div class="stat-icon success">👨‍🏫</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Today's Attendance</span>
+                <span class="stat-value">{{ today_rate }}%</span>
+                <span class="stat-helper">{{ present_count }} Present / {{ total_marked }} Marked</span>
+            </div>
+            <div class="stat-icon warning">📅</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Low Attendance Alert</span>
+                <span class="stat-value" style="color: var(--danger);">{{ low_attendance_count }}</span>
+                <span class="stat-helper">Students below 75%</span>
+            </div>
+            <div class="stat-icon danger">⚠️</div>
+        </div>
+    </div>
+
+    <!-- Quick Shortcuts & Low Attendance Monitoring -->
+    <div class="form-row" style="margin-bottom: 1.5rem;">
+        <!-- Low Attendance Monitoring Card (Req 5.5) -->
+        <div class="card col" style="flex: 1.6; min-width: 320px; margin-bottom: 0;">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">⚠️ Students with Low Attendance (&lt; 75%)</h3>
+                    <p class="card-subtitle">Automated monitoring for early intervention and timely action</p>
+                </div>
+                <a href="{{ url_for('reports.index', low_only=1) }}" class="btn btn-secondary btn-sm">
+                    View All Low Attendance
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Roll Number</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th>Attendance</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if low_attendance_students %}
+                            {% for s in low_attendance_students %}
+                                <tr>
+                                    <td><strong>{{ s.roll_number }}</strong></td>
+                                    <td>{{ s.name }}</td>
+                                    <td><span class="badge badge-neutral">{{ s.class_name }}</span></td>
+                                    <td>
+                                        <div class="progress-bar-container">
+                                            <div class="progress-bar-fill fill-danger" style="width: {{ s.percentage }}%;"></div>
+                                        </div>
+                                        <span class="badge badge-low-attendance">{{ s.percentage }}%</span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('reports.index', student_id=s.id) }}" class="btn btn-secondary btn-sm">
+                                            Full Report
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                    🎉 All students currently maintain attendance above the 75% threshold!
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Access Module Actions -->
+        <div class="card col" style="flex: 1; min-width: 280px; margin-bottom: 0;">
+            <div class="card-header">
+                <h3 class="card-title">Quick Operations</h3>
+                <p class="card-subtitle">Administrative short-cuts</p>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: 0.85rem;">
+                <a href="{{ url_for('attendance.index') }}" class="btn btn-primary" style="justify-content: flex-start; padding: 0.85rem 1.1rem;">
+                    <span style="font-size: 1.25rem;">📝</span>
+                    <div style="text-align: left; margin-left: 0.5rem;">
+                        <div style="font-weight: 700;">Take Daily Attendance</div>
+                        <div style="font-size: 0.775rem; opacity: 0.9;">Log Present / Absent for classes</div>
+                    </div>
+                </a>
+
+                <a href="{{ url_for('students.index') }}" class="btn btn-secondary" style="justify-content: flex-start; padding: 0.85rem 1.1rem;">
+                    <span style="font-size: 1.25rem;">🎓</span>
+                    <div style="text-align: left; margin-left: 0.5rem;">
+                        <div style="font-weight: 700;">Student Management</div>
+                        <div style="font-size: 0.775rem; color: var(--text-muted);">Add, edit, or search student records</div>
+                    </div>
+                </a>
+
+                <a href="{{ url_for('faculty.index') }}" class="btn btn-secondary" style="justify-content: flex-start; padding: 0.85rem 1.1rem;">
+                    <span style="font-size: 1.25rem;">👨‍🏫</span>
+                    <div style="text-align: left; margin-left: 0.5rem;">
+                        <div style="font-weight: 700;">Faculty Roster</div>
+                        <div style="font-size: 0.775rem; color: var(--text-muted);">Onboard and manage teaching staff</div>
+                    </div>
+                </a>
+
+                <a href="{{ url_for('reports.index') }}" class="btn btn-secondary" style="justify-content: flex-start; padding: 0.85rem 1.1rem;">
+                    <span style="font-size: 1.25rem;">📊</span>
+                    <div style="text-align: left; margin-left: 0.5rem;">
+                        <div style="font-weight: 700;">Generate Reports</div>
+                        <div style="font-size: 0.775rem; color: var(--text-muted);">Filter, calculate %, and export to CSV</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Attendance Logs (Req 5.4) -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">Recent Attendance Sessions</h3>
+                <p class="card-subtitle">Latest recorded sessions across departments</p>
+            </div>
+            <a href="{{ url_for('attendance.index') }}" class="btn btn-secondary btn-sm">Take New Session</a>
+        </div>
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Class</th>
+                        <th>Subject</th>
+                        <th>Marked By</th>
+                        <th>Present / Total</th>
+                        <th>Attendance Rate</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_logs %}
+                        {% for log in recent_logs %}
+                            {% set pct = (log.present_count / log.total_students * 100)|round(1) if log.total_students > 0 else 0 %}
+                            <tr>
+                                <td><strong>{{ log.date }}</strong></td>
+                                <td><span class="badge badge-neutral">{{ log.class_name }}</span></td>
+                                <td>{{ log.subject }}</td>
+                                <td>{{ log.marked_by }}</td>
+                                <td><strong>{{ log.present_count }}</strong> / {{ log.total_students }}</td>
+                                <td>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-fill {% if pct >= 75 %}fill-good{% else %}fill-danger{% endif %}" style="width: {{ pct }}%;"></div>
+                                    </div>
+                                    <span class="badge {% if pct >= 75 %}badge-good-attendance{% else %}badge-low-attendance{% endif %}">
+                                        {{ pct }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('attendance.index', class_name=log.class_name, subject=log.subject, date=log.date) }}" class="btn btn-secondary btn-sm" title="Edit / Correct Attendance">
+                                        Correct Entry
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No attendance sessions recorded yet. Click "Mark Today's Attendance" to get started!
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

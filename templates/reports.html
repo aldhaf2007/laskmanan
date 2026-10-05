@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance Reports & Analytics{% endblock %}
+{% block page_title %}Attendance Reports & Analytics{% endblock %}
+
+{% block header_actions %}
+    <a href="{{ url_for('reports.export_csv', class_name=selected_class, subject=selected_subject, student_id=selected_student, start_date=start_date, end_date=end_date, low_only=1 if low_only else 0) }}" class="btn btn-secondary">
+        📥 Export to CSV
+    </a>
+    <button type="button" class="btn btn-secondary" onclick="printReport()">
+        🖨️ Print Report
+    </button>
+{% endblock %}
+
+{% block content %}
+    <!-- Filter Card -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">Filter Criteria</h3>
+                <p class="card-subtitle">Generate custom attendance analytics by class, student, subject, or date range</p>
+            </div>
+            {% if low_only %}
+                <span class="badge badge-low-attendance" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+                    ⚠️ Showing Low Attendance Students Only (&lt; 75%)
+                </span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('reports.index') }}">
+                <div class="form-row">
+                    <!-- Class Filter -->
+                    <div class="form-group col">
+                        <label class="form-label" for="filter_class">Class / Section</label>
+                        <select id="filter_class" name="class_name" class="form-select">
+                            <option value="">All Classes</option>
+                            {% for c in classes %}
+                                <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>{{ c }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Subject Filter -->
+                    <div class="form-group col">
+                        <label class="form-label" for="filter_sub">Subject / Course</label>
+                        <select id="filter_sub" name="subject" class="form-select">
+                            <option value="">All Subjects</option>
+                            {% for s in subjects %}
+                                <option value="{{ s }}" {% if selected_subject == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Individual Student Filter -->
+                    <div class="form-group col">
+                        <label class="form-label" for="filter_student">Specific Student</label>
+                        <select id="filter_student" name="student_id" class="form-select">
+                            <option value="">All Students</option>
+                            {% for st in students %}
+                                <option value="{{ st.id }}" {% if selected_student == st.id|string %}selected{% endif %}>
+                                    {{ st.roll_number }} - {{ st.name }} ({{ st.class_name }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" style="align-items: flex-end;">
+                    <!-- Date Range Start -->
+                    <div class="form-group col">
+                        <label class="form-label" for="start_date">From Date</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control" value="{{ start_date }}">
+                    </div>
+
+                    <!-- Date Range End -->
+                    <div class="form-group col">
+                        <label class="form-label" for="end_date">To Date</label>
+                        <input type="date" id="end_date" name="end_date" class="form-control" value="{{ end_date }}">
+                    </div>
+
+                    <!-- Low Attendance Monitoring Toggle -->
+                    <div class="form-group col" style="display: flex; align-items: center; padding-bottom: 0.6rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" name="low_only" value="1" {% if low_only %}checked{% endif %} style="width: 18px; height: 18px; accent-color: var(--danger);">
+                            <span>Flag Low Attendance (&lt; 75%) Only</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.1rem; display: flex; gap: 0.5rem;">
+                        <button type="submit" class="btn btn-primary">Generate Report</button>
+                        <a href="{{ url_for('reports.index') }}" class="btn btn-secondary">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Metrics Grid -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Students Evaluated</span>
+                <span class="stat-value">{{ total_evaluated }}</span>
+                <span class="stat-helper">Under active filter</span>
+            </div>
+            <div class="stat-icon primary">👥</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Average Attendance</span>
+                <span class="stat-value">{{ overall_percentage }}%</span>
+                <span class="stat-helper">Cumulative aggregate</span>
+            </div>
+            <div class="stat-icon success">📊</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-info">
+                <span class="stat-label">Critical At-Risk</span>
+                <span class="stat-value" style="color: var(--danger);">{{ low_attendance_count }}</span>
+                <span class="stat-helper">Students below 75% threshold</span>
+            </div>
+            <div class="stat-icon danger">⚠️</div>
+        </div>
+    </div>
+
+    <!-- Report Data Presentation Table -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">Generated Attendance Roster</h3>
+                <p class="card-subtitle">Automated computation of session counts, attendance totals, and ratios</p>
+            </div>
+            <div style="min-width: 240px;">
+                <input 
+                    type="text" 
+                    id="tableInstantSearch" 
+                    class="form-control" 
+                    placeholder="🔍 Filter displayed table..."
+                >
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="custom-table filterable-table">
+                <thead>
+                    <tr>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Contact</th>
+                        <th>Total Sessions</th>
+                        <th>Attended</th>
+                        <th>Absent</th>
+                        <th>Attendance Rate (%)</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if records %}
+                        {% for r in records %}
+                            <tr>
+                                <td><strong style="color: var(--primary);">{{ r.roll_number }}</strong></td>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--dark);">{{ r.name }}</div>
+                                </td>
+                                <td><span class="badge badge-neutral">{{ r.class_name }}</span></td>
+                                <td>{{ r.contact }}</td>
+                                <td><strong>{{ r.total_classes }}</strong></td>
+                                <td style="color: #059669; font-weight: 600;">{{ r.present_classes }}</td>
+                                <td style="color: #dc2626; font-weight: 600;">{{ r.absent_classes }}</td>
+                                <td>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-fill {% if r.percentage >= 75 %}fill-good{% elif r.percentage >= 60 %}fill-warning{% else %}fill-danger{% endif %}" style="width: {{ r.percentage }}%;"></div>
+                                    </div>
+                                    <strong>{{ r.percentage }}%</strong>
+                                </td>
+                                <td>
+                                    {% if r.total_classes == 0 %}
+                                        <span class="badge badge-neutral">No Sessions</span>
+                                    {% elif r.is_low %}
+                                        <span class="badge badge-low-attendance">⚠️ At Risk (&lt;75%)</span>
+                                    {% else %}
+                                        <span class="badge badge-good-attendance">Good Standing</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No attendance records matched the specified filter criteria.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

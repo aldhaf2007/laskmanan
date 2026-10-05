@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Student Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="login-body">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-icon-box">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--dark); letter-spacing: -0.02em;">Admin Portal</h2>
+            <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">Sign in to access Attendance Management</p>
+        </div>
+
+        <!-- Flash messages / error handling -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alerts-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            <span>{{ message }}</span>
+                            <button type="button" class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
+            <div class="form-group">
+                <label class="form-label" for="username">Username</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    class="form-control" 
+                    placeholder="Enter admin username"
+                    value="{{ username or '' }}" 
+                    required 
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label class="form-label" for="password" style="margin-bottom: 0;">Password</label>
+                </div>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    class="form-control" 
+                    placeholder="Enter password"
+                    required
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-size: 0.95rem;">
+                Sign In to Dashboard
+            </button>
+        </form>
+
+        <div style="margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--slate-200); text-align: center;">
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+                Default credentials: <strong>admin</strong> / <strong>admin123</strong>
+            </p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Management{% endblock %}
+{% block page_title %}Student Management Directory{% endblock %}
+
+{% block header_actions %}
+    <button class="btn btn-primary" onclick="openModal('addStudentModal')">
+        <span>+</span> Add New Student
+    </button>
+{% endblock %}
+
+{% block content %}
+    <div class="card">
+        <!-- Directory Filter Bar -->
+        <div class="card-header">
+            <div style="display: flex; gap: 1rem; align-items: center; flex: 1; flex-wrap: wrap;">
+                <!-- Instant Client-Side Search -->
+                <div style="min-width: 260px; flex: 1;">
+                    <input 
+                        type="text" 
+                        id="tableInstantSearch" 
+                        class="form-control" 
+                        placeholder="🔍 Instant search by name, roll number, or contact..."
+                        value="{{ search or '' }}"
+                    >
+                </div>
+
+                <!-- Server-Side Class Filter Dropdown -->
+                <form method="GET" action="{{ url_for('students.index') }}" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <select name="class_name" class="form-select" onchange="this.form.submit()" style="width: auto;">
+                        <option value="">All Classes ({{ students|length }} Students)</option>
+                        {% for c in classes %}
+                            <option value="{{ c }}" {% if selected_class == c %}selected{% endif %}>Class: {{ c }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if selected_class or search %}
+                        <a href="{{ url_for('students.index') }}" class="btn btn-secondary btn-sm" title="Clear Filters">Reset</a>
+                    {% endif %}
+                </form>
+            </div>
+            <div>
+                <span class="badge badge-neutral" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">
+                    Total Records: {{ students|length }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Student Directory Table -->
+        <div class="table-responsive">
+            <table class="custom-table filterable-table">
+                <thead>
+                    <tr>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Contact Info</th>
+                        <th>Registered Date</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if students %}
+                        {% for s in students %}
+                            <tr>
+                                <td><strong style="color: var(--primary);">{{ s.roll_number }}</strong></td>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--dark);">{{ s.name }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-neutral">{{ s.class_name }}</span>
+                                </td>
+                                <td>
+                                    <span>{{ s.contact }}</span>
+                                </td>
+                                <td>
+                                    <span style="font-size: 0.825rem; color: var(--text-muted);">
+                                        {{ s.created_at.strftime('%Y-%m-%d') if s.created_at else 'N/A' }}
+                                    </span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <button 
+                                        class="btn btn-secondary btn-sm"
+                                        onclick="openEditModal('{{ s.id }}', '{{ s.roll_number }}', '{{ s.name }}', '{{ s.class_name }}', '{{ s.contact }}')"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        class="btn btn-outline-danger btn-sm"
+                                        onclick="openDeleteModal('{{ s.id }}', '{{ s.roll_number }}', '{{ s.name }}')"
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                                No student records found. Click <strong>"Add New Student"</strong> to create one.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal: Add Student -->
+    <dialog id="addStudentModal">
+        <form method="POST" action="{{ url_for('students.add') }}">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Student</h3>
+                <button type="button" class="modal-close" onclick="closeModal('addStudentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="add_roll">Roll Number *</label>
+                    <input type="text" id="add_roll" name="roll_number" class="form-control" placeholder="e.g. CSE2024010" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="add_name">Full Name *</label>
+                    <input type="text" id="add_name" name="name" class="form-control" placeholder="e.g. John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="add_class">Class / Section *</label>
+                    <input type="text" id="add_class" name="class_name" class="form-control" placeholder="e.g. CSE-A, 10-A, B.Tech III" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="add_contact">Contact Information *</label>
+                    <input type="text" id="add_contact" name="contact" class="form-control" placeholder="Phone or email address" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addStudentModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Student</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Modal: Edit Student -->
+    <dialog id="editStudentModal">
+        <form id="editStudentForm" method="POST" action="">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Student Record</h3>
+                <button type="button" class="modal-close" onclick="closeModal('editStudentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="edit_roll">Roll Number *</label>
+                    <input type="text" id="edit_roll" name="roll_number" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit_name">Full Name *</label>
+                    <input type="text" id="edit_name" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit_class">Class / Section *</label>
+                    <input type="text" id="edit_class" name="class_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit_contact">Contact Information *</label>
+                    <input type="text" id="edit_contact" name="contact" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editStudentModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Changes</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Modal: Delete Confirmation -->
+    <dialog id="deleteStudentModal">
+        <form id="deleteStudentForm" method="POST" action="">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger);">Confirm Deletion</h3>
+                <button type="button" class="modal-close" onclick="closeModal('deleteStudentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete student <strong id="deleteStudentName"></strong> (<span id="deleteStudentRoll"></span>)?</p>
+                <p style="font-size: 0.825rem; color: var(--danger); margin-top: 0.5rem;">
+                    ⚠️ This action cannot be undone. All related attendance history for this student will also be removed.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('deleteStudentModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Confirm Delete</button>
+            </div>
+        </form>
+    </dialog>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function openEditModal(id, roll, name, className, contact) {
+        document.getElementById('editStudentForm').action = `/students/edit/${id}`;
+        document.getElementById('edit_roll').value = roll;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_class').value = className;
+        document.getElementById('edit_contact').value = contact;
+        openModal('editStudentModal');
+    }
+
+    function openDeleteModal(id, roll, name) {
+        document.getElementById('deleteStudentForm').action = `/students/delete/${id}`;
+        document.getElementById('deleteStudentName').textContent = name;
+        document.getElementById('deleteStudentRoll').textContent = roll;
+        openModal('deleteStudentModal');
+    }
+</script>
+{% endblock %}
